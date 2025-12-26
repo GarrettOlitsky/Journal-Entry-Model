@@ -1,31 +1,30 @@
 SYSTEM_PROMPT = """You are an expert accountant.
-Generate a practical Chart of Accounts tailored to the entity.
+Create a correct journal entry for the described transaction.
 Return ONLY valid JSON. No markdown. No commentary."""
 
 USER_TEMPLATE = """
 Entity name: {entity_name}
-Entity type: {entity_type}  (for-profit or nonprofit)
 
-Entity description:
+Transaction description:
 {description}
 
-Optional evidence from uploaded docs (may be empty):
-- Hints: {hints}
-- Top vendors/merchants: {top_vendors}
-- Raw excerpt (truncated): {raw_excerpt}
+Optional evidence (may be empty):
+- PDF excerpt (truncated): {pdf_excerpt}
+- CSV hints: {csv_hints}
+- CSV top descriptions: {csv_top_descriptions}
 
 Rules:
-- Use a coherent numbering scheme:
-  Assets 1000-1999, Liabilities 2000-2999, Equity/Net Assets 3000-3999,
-  Revenue 4000-4999, COGS 5000-5999 (if applicable), Operating Expenses 6000-6999,
-  Other Income/Gains 7000-7999, Other Expenses/Losses 8000-8999.
-- Prefer accounts supported by evidence (e.g., merchant fees if Square/Stripe shows up; loan payable/interest if loan hints appear; payroll accounts if payroll hints appear).
-- Avoid duplicates and overly granular noise.
+- Output must be balanced (total debits = total credits).
+- Use simple, standard accounts unless entity-specific accounts are obvious from the evidence.
+- Amounts must be positive numbers; use 0 for the other side.
+- If ambiguous, pick the most reasonable treatment and keep it minimal (2-4 lines).
 
-Output JSON with schema:
+Output JSON schema:
 {{
-  "accounts": [
-    {{ "number": "1010", "name": "Operating Checking" }}
+  "date": "YYYY-MM-DD",
+  "memo": "short memo",
+  "lines": [
+    {{ "account": "Account Name", "debit": 0, "credit": 0 }}
   ]
 }}
 """

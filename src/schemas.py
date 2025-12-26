@@ -1,20 +1,23 @@
-COA_SCHEMA = {
+JE_SCHEMA = {
     "type": "object",
-    "required": ["accounts"],
+    "required": ["date", "memo", "lines"],
     "properties": {
-        "accounts": {
+        "date": {"type": "string"},
+        "memo": {"type": "string"},
+        "lines": {
             "type": "array",
-            "minItems": 8,
+            "minItems": 2,
             "items": {
                 "type": "object",
-                "required": ["number", "name"],
+                "required": ["account", "debit", "credit"],
                 "properties": {
-                    "number": {"type": "string"},
-                    "name": {"type": "string"},
+                    "account": {"type": "string"},
+                    "debit": {"type": "number", "minimum": 0},
+                    "credit": {"type": "number", "minimum": 0},
                 },
                 "additionalProperties": False,
             },
-        }
+        },
     },
     "additionalProperties": False,
 }

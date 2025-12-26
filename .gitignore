@@ -1,14 +1,6 @@
-# Python
 .venv/
 __pycache__/
 *.pyc
-
-# Environment
 .env
-
-# Outputs
 *.xlsx
-
-# OS / Editor
 .DS_Store
-.vscode/

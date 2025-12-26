@@ -1,48 +1,51 @@
 from __future__ import annotations
 import argparse
+
 from .prompts import SYSTEM_PROMPT, USER_TEMPLATE
 from .model_client import ModelClient
-from .validators import validate_schema, normalize_accounts, sanity_check_numbering
-from .excel_writer import write_coa_xlsx
-from .schemas import COA_SCHEMA
+from .schemas import JE_SCHEMA
+from .validators import validate_schema, validate_balanced, normalize
+from .excel_writer import write_je_xlsx
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Generate a Chart of Accounts (Excel) from an entity description.")
-    p.add_argument("--type", required=True, choices=["for-profit", "nonprofit"], help="Entity type")
-    p.add_argument("--name", required=True, help="Entity name")
-    p.add_argument("--desc", required=True, help="Entity description (quoted string)")
-    p.add_argument("--out", default="Chart_of_Accounts.xlsx", help="Output XLSX path")
+    p = argparse.ArgumentParser(description="Generate a Journal Entry (Excel) from a transaction description.")
+    p.add_argument("--entity", required=True, help="Entity name")
+    p.add_argument("--desc", required=True, help="Transaction description")
+    p.add_argument("--out", default="Journal_Entry.xlsx", help="Output XLSX")
     return p.parse_args()
 
-def run(entity_type: str, entity_name: str, description: str, out_path: str,
-        hints: list[str] | None = None,
-        top_vendors: list[dict] | None = None,
-        raw_excerpt: str = "") -> None:
-
-    hints = hints or []
-    top_vendors = top_vendors or []
+def run(
+    entity_name: str,
+    description: str,
+    out_path: str,
+    pdf_excerpt: str = "",
+    csv_hints: list[str] | None = None,
+    csv_top_descriptions: list[dict] | None = None,
+) -> dict:
+    csv_hints = csv_hints or []
+    csv_top_descriptions = csv_top_descriptions or []
 
     user_prompt = USER_TEMPLATE.format(
-        entity_type=entity_type,
         entity_name=entity_name,
         description=description,
-        hints=hints,
-        top_vendors=top_vendors,
-        raw_excerpt=raw_excerpt,
+        pdf_excerpt=pdf_excerpt,
+        csv_hints=csv_hints,
+        csv_top_descriptions=csv_top_descriptions,
     )
 
     client = ModelClient()
-    payload = client.call_model(SYSTEM_PROMPT, user_prompt, json_schema=COA_SCHEMA)
+    payload = client.call_model(SYSTEM_PROMPT, user_prompt, json_schema=JE_SCHEMA)
 
     validate_schema(payload)
-    accounts = normalize_accounts(payload)
-    sanity_check_numbering(accounts)
+    validate_balanced(payload)
+    payload = normalize(payload)
 
-    write_coa_xlsx(accounts, out_path)
+    write_je_xlsx(payload, out_path)
+    return payload
 
 def main() -> None:
     args = parse_args()
-    run(args.type, args.name, args.desc, args.out)
+    run(args.entity, args.desc, args.out)
     print(f"Wrote {args.out}")
 
 if __name__ == "__main__":

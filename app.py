@@ -3,58 +3,68 @@ import tempfile
 import streamlit as st
 
 from src.main import run
-from src.ingest.pdf_bank import extract_text_from_pdf, build_evidence_pack_from_pdf_text
+from src.ingest.pdf_extract import extract_text_from_pdf
+from src.ingest.csv_bank import parse_bank_csv, build_csv_evidence
 
-st.set_page_config(page_title="Chart of Accounts Model", layout="centered")
+st.set_page_config(page_title="Journal Entry Model", layout="centered")
+st.title("Journal Entry Model (LLM → Excel)")
+st.caption("Describe a transaction or upload a PDF/CSV. Generates a balanced journal entry in Excel.")
 
-st.title("Chart of Accounts Model")
-st.caption("Describe an entity + optionally upload a bank statement PDF. Generates a 2-column Excel Chart of Accounts.")
+entity = st.text_input("Entity name", value="REGAL ALE")
 
-entity_type = st.selectbox("Entity type", ["for-profit", "nonprofit"])
-entity_name = st.text_input("Entity name", value="REGAL ALE")
-description = st.text_area(
-    "Describe the entity (industry, revenue streams, costs, assets, payroll, loans, etc.)",
-    value="Craft beer bar selling draft beer, snacks, merch; uses Square POS; has inventory; payroll; rent; tips.",
-    height=140
+desc = st.text_area(
+    "Transaction description (example: 'Paid $620.55 loan payment to Chase; $120.55 interest; remainder principal.')",
+    height=120,
 )
 
-uploaded_pdf = st.file_uploader("Optional: Upload bank statement PDF", type=["pdf"])
+uploaded_pdf = st.file_uploader("Optional: Upload a PDF (bank/loan statement, invoice)", type=["pdf"])
+uploaded_csv = st.file_uploader("Optional: Upload a CSV (bank export)", type=["csv"])
 
-evidence = None
+pdf_excerpt = ""
 if uploaded_pdf is not None:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(uploaded_pdf.getbuffer())
         tmp_path = tmp.name
 
-    text = extract_text_from_pdf(tmp_path, max_pages=3)
-    evidence = build_evidence_pack_from_pdf_text(text)
-
-    st.subheader("What I detected (MVP)")
-    st.write({"hints": evidence.hints, "top_vendors": evidence.top_vendors})
+    pdf_excerpt = extract_text_from_pdf(tmp_path, max_pages=2)[:4000]
     os.unlink(tmp_path)
 
-out_name = st.text_input("Output filename", value="Chart_of_Accounts.xlsx")
+    st.subheader("PDF excerpt (truncated)")
+    st.text(pdf_excerpt[:1200])
 
-if st.button("Generate Excel"):
-    hints = evidence.hints if evidence else []
-    top_vendors = evidence.top_vendors if evidence else []
-    raw_excerpt = evidence.raw_text_excerpt if evidence else ""
+csv_hints = []
+csv_top_descriptions = []
+if uploaded_csv is not None:
+    rows = parse_bank_csv(uploaded_csv.getvalue())
+    ev = build_csv_evidence(rows)
+    csv_hints = ev.hints
+    csv_top_descriptions = ev.top_descriptions
 
-    run(
-        entity_type=entity_type,
-        entity_name=entity_name,
-        description=description,
+    st.subheader("CSV detected signals (MVP)")
+    st.write({"hints": csv_hints, "top_descriptions": csv_top_descriptions})
+
+    st.subheader("CSV preview")
+    st.dataframe(ev.rows_preview)
+
+out_name = st.text_input("Output filename", value="Journal_Entry.xlsx")
+
+if st.button("Generate Journal Entry Excel"):
+    payload = run(
+        entity_name=entity,
+        description=desc,
         out_path=out_name,
-        hints=hints,
-        top_vendors=top_vendors,
-        raw_excerpt=raw_excerpt,
+        pdf_excerpt=pdf_excerpt,
+        csv_hints=csv_hints,
+        csv_top_descriptions=csv_top_descriptions,
     )
 
+    st.success("Generated balanced journal entry.")
+    st.write(payload)
+
     with open(out_name, "rb") as f:
-        st.success("Done!")
         st.download_button(
-            label="Download Chart of Accounts (Excel)",
+            "Download Excel",
             data=f,
             file_name=out_name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
